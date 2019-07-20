@@ -6,12 +6,13 @@ Writen by Piotr Marszalik - @addenial - peter.mars[at]outlook.com
 -  orginal version - 05/08/2013
 
 Available output types:
-- raw (encoded payload only - no powershell run options)
+- raw (plaintext powershell payload only - no base64 encoding)
 - cmd (for use with bat files)
 - vba (for use with macro trojan docs)
 - vbs (for use with vbs scripts)
 - war (tomcat)
 - exe (executable) requires MinGW - x86_64-w64-mingw32-gcc [apt-get install mingw-w64]
+- go (golang executable) requires Golang - go [apt-get install golang-go]
 - java (for use with malicious java applets)
 - js (javascript)
 - js-rd32 (javascript called by rundll32.exe)

