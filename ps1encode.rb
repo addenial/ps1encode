@@ -26,7 +26,8 @@
 # => lnk (windows shortcut - requires a webserver to stage the payload)
 # => sct (COM scriptlet - requires a webserver to stage the payload)
 #
-#    Powershell code based on PowerSploit written by Matthew Graeber and SET by Dave Kennedy
+#    #Powershell code based on PowerSploit written by Matthew Graeber and SET by Dave Kennedy
+#    Latst version using modified msfvenom psh-cmd template with added obfuscation (XOR shellcode, etc.)
 #     DETAILS:
 #   - https://rvnsec.wordpress.com/2014/09/01/ps1encode-powershell-for-days/
 #   - https://rvnsec.wordpress.com/2015/12/18/shell-party-continues/
