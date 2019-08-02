@@ -5,6 +5,7 @@
 #    Use to generate and encode a powershell based metasploit payloads.
 #
 #    Writen by Piotr Marszalik - @addenial - peter.mars[at]outlook.com
+#    https://github.com/addenial/ps1encode
 #    orginal version - 05/08/2013
 #    
 #
