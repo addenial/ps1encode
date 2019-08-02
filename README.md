@@ -25,6 +25,7 @@ Available output types:
 
 
 ~~Powershell code based on PowerSploit written by Matthew Graeber and SET by Dave Kennedy~~
+
 Latest version using modified msfvenom psh-cmd template with added obfuscation (XOR shellcode, etc.)
 
 DETAILS:
