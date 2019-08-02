@@ -3,6 +3,7 @@ ps1encode
 #### Use to generate and encode a powershell based metasploit payloads.
 
 Writen by Piotr Marszalik - @addenial - peter.mars[at]outlook.com
+https://github.com/addenial/ps1encode
 -  orginal version - 05/08/2013
 
 Available output types:
@@ -31,4 +32,3 @@ Latest version using modified msfvenom psh-cmd template with added obfuscation (
 DETAILS:
 * https://rvnsec.wordpress.com/2014/09/01/ps1encode-powershell-for-days/
 * https://rvnsec.wordpress.com/2015/12/18/shell-party-continues/
-
