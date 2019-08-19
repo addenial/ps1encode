@@ -76,7 +76,11 @@ optparse = OptionParser.new do|opts|
     opts.on('--handler', "Show MSF handler options") do |d|
                 options[:HAND] = true
         end
-
+    opts.separator ""
+    opts.on('-h', '--help', "Display this help screen") do
+        puts opts
+        exit
+        end
     opts.separator ""
 end
 
