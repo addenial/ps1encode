@@ -14,6 +14,7 @@ Available output types:
 - war (tomcat)
 - exe (executable) requires MinGW - x86_64-w64-mingw32-gcc [apt-get install mingw-w64]
 - go (golang executable) requires Golang - go [apt-get install golang-go]
+- godll (golang dll) requires Golang, can be executed with bins like rundll32.exe
 - java (for use with malicious java applets)
 - js (javascript)
 - js-rd32 (javascript called by rundll32.exe)

